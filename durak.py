@@ -1,11 +1,18 @@
 from telegram import Bot, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler
+from enum import Enum
 import math
 import random
+import re
 from poker import Card
 
 TOKEN = '1149877964:AAEsgPRA71GcpjDLkGgqrpKaWlq2AXqW9hY'
 bot = Bot(TOKEN)
+
+class State(Enum):
+    WAITING_FOR_ATTACKER = 1
+    FREE_TO_ATTACK = 2
+    WAITING_FOR_ATTACKEE = 3
 
 class Durak():
     def __init__(self):
@@ -17,7 +24,7 @@ class Durak():
         self.total_number_of_cards = 0
         self.trump_suit = ''
         self.attacker = 0
-        self.attacked = 0
+        self.attackee = 0
         self.state = None
 
 durak = Durak()
@@ -84,13 +91,38 @@ def start_game(update, context):
     play_game()
 
 def launch_attack():
+    durak.state = State.WAITING_FOR_ATTACKER
     reply_keyboard = [durak.cards[durak.players[durak.attacker]]]
-    message = 'You are the attacker this round. Choose a card to attack {}.'.format(durak.players[durak.attacked])
+    message = 'You are the attacker this round. Choose a card to attack {}.'.format(durak.players[durak.attackee])
     bot.send_message(chat_id=durak.chat_ids[durak.attacker], text=message,
                      reply_markup=ReplyKeyboardMarkup(reply_keyboard))
 
-def handle_response():
-    pass
+def attack_card(card):
+    for i in range(len(durak.players)):
+        if i == durak.attacker:
+            message = 'You have chosen to attack {} with {}.'.format(durak.players[durak.attackee], card)
+            durak.cards[durak.players[durak.attacker]].remove(card)
+            reply_keyboard = [durak.cards[durak.players[durak.attacker]]]
+        elif i == durak.attackee:
+            message = 'You have been attacked by {} with {}.'.format(durak.players[durak.attacker], card)
+            reply_keyboard = [durak.cards[durak.players[durak.attackee]]]
+        else:
+            message = '{} has attacked {} with {}.'.format(durak.players[durak.attacker], durak.players[durak.attackee], card)
+            reply_keyboard = [durak.cards[durak.players[i]]]
+        bot.send_message(chat_id=durak.chat_ids[durak.attacker], text=message,
+                         reply_markup=ReplyKeyboardMarkup(reply_keyboard))
+    durak.state = State.FREE_TO_ATTACK
+            
+
+def validate_string(text):
+    pattern = re.compile(r'^(?:[2-9TJQKA])(?:[♣️♦️♥️♠️])$')
+    return bool(pattern.match(text))
+
+def handle_response(update, context):
+    if (durak.state == State.WAITING_FOR_ATTACKER) and (update.message.from_user.first_name == durak.players[durak.attacker]):
+        if not validate_string(update.message.text):
+            return
+        attack_card(update.message.text)
 
 def play_game():
     launch_attack()
