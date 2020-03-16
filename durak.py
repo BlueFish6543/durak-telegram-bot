@@ -4,7 +4,7 @@ from enum import Enum
 import math
 import random
 import re
-from poker import Card
+from poker import Card, Rank
 
 TOKEN = '1149877964:AAEsgPRA71GcpjDLkGgqrpKaWlq2AXqW9hY'
 bot = Bot(TOKEN)
@@ -26,6 +26,8 @@ class Durak():
         self.attacker = 0
         self.attackee = 0
         self.state = None
+        self.attacked_cards = []
+        self.played_numbers = []
 
 durak = Durak()
 
@@ -102,6 +104,8 @@ def attack_card(card):
         if i == durak.attacker:
             message = 'You have chosen to attack {} with {}.'.format(durak.players[durak.attackee], card)
             durak.cards[durak.players[durak.attacker]].remove(card)
+            if card[0] not in durak.played_numbers:
+                durak.played_numbers.append(card[0])
             reply_keyboard = [durak.cards[durak.players[durak.attacker]]]
         elif i == durak.attackee:
             message = 'You have been attacked by {} with {}.'.format(durak.players[durak.attacker], card)
@@ -109,11 +113,56 @@ def attack_card(card):
         else:
             message = '{} has attacked {} with {}.'.format(durak.players[durak.attacker], durak.players[durak.attackee], card)
             reply_keyboard = [durak.cards[durak.players[i]]]
-        bot.send_message(chat_id=durak.chat_ids[durak.attacker], text=message,
+        bot.send_message(chat_id=durak.chat_ids[i], text=message,
                          reply_markup=ReplyKeyboardMarkup(reply_keyboard))
+    
+    durak.attacked_cards.append(card)
     durak.state = State.FREE_TO_ATTACK
-            
 
+def attack_card_from_anyone(card, user):
+    if card[0] not in durak.played_numbers:
+        return
+    if len(durak.attacked_cards) == min(7, len(durak.cards[durak.players[durak.attackee]])):
+        return
+    for i in range(len(durak.players)):
+        if durak.players[i] == user:
+            message = 'You have attacked {} with {}.'.format(durak.players[durak.attackee], card)
+            durak.cards[durak.players[i]].remove(card)
+            reply_keyboard = [durak.cards[durak.players[i]]]
+        elif i == durak.attackee:
+            message = '{} has attacked you with {}.'.format(user, card)
+            reply_keyboard = [durak.cards[user]]
+        else:
+            message = '{} has attacked {} with {}.'.format(user, durak.players[durak.attackee], card)
+            reply_keyboard = [durak.cards[durak.players[i]]]
+        bot.send_message(chat_id=durak.chat_ids[i], text=message,
+                         reply_markup=ReplyKeyboardMarkup(reply_keyboard))
+    
+    durak.attacked_cards.append(card)
+
+def compare_cards(card):
+    lower_cards = []
+
+    for attacked_card in durak.attacked_cards:
+        if attacked_card[1] == durak.trump_suit:
+            if card[1] != durak.trump_suit:
+                continue
+            if Rank(card[0]) > Rank(attacked_card[0]):
+                lower_cards.append(attacked_card)
+        else:
+            if card[1] == durak.trump_suit:
+                lower_cards.append(attacked_card)
+            elif card[1] != attacked_card[1]:
+                continue
+                # by now the cards should be same suit
+            elif Rank(card[0]) > Rank(attacked_card[0]):
+                lower_cards.append(attacked_card)
+
+    return lower_cards
+
+def respond_to_attack(card):
+    pass
+            
 def validate_string(text):
     pattern = re.compile(r'^(?:[2-9TJQKA])(?:[♣️♦️♥️♠️])$')
     return bool(pattern.match(text))
@@ -123,6 +172,16 @@ def handle_response(update, context):
         if not validate_string(update.message.text):
             return
         attack_card(update.message.text)
+
+    elif (durak.state == State.FREE_TO_ATTACK) and (update.message.from_user.first_name != durak.players[durak.attackee]):
+        if not validate_string(update.message.text):
+            return
+        attack_card_from_anyone(update.message.text, update.message.from_user.first_name)
+    
+    elif (durak.state == State.FREE_TO_ATTACK) and (update.message.from_user.first_name == durak.players[durak.attackee]):
+        if not validate_string(update.message.text):
+            return
+        respond_to_attack(update.message.text)
 
 def play_game():
     launch_attack()
