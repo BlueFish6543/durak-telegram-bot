@@ -160,8 +160,31 @@ def compare_cards(card):
 
     return lower_cards
 
+def deflect_attack():
+    durak.attackee = (durak.attackee + 1) % len(durak.players)
+    while len(durak.cards[durak.players[durak.attackee]]) == 0:
+        # Go to the next active player
+        durak.attackee = (durak.attackee + 1) % len(durak.players)
+
+    for i in range(len(durak.players)):
+        if i == durak.attackee:
+            message = 'The attack has been deflected. You are being attacked with {}.'.format(durak.attacked_cards)
+            reply_keyboard = [durak.cards[durak.players[durak.attackee]]]
+        else:
+            message = 'The attack has been deflected. {} is being attacked with {}'.format(durak.players[durak.attackee], durak.attacked_cards)
+            reply_keyboard = [durak.cards[durak.players[i]]]
+        bot.send_message(chat_id=durak.chat_ids[i], text=message,
+                         reply_markup=ReplyKeyboardMarkup(reply_keyboard))
+    
+
 def respond_to_attack(card):
-    pass
+    if card[0] == durak.played_numbers[0]:
+        if card[1] != durak.trump_suit:
+            durak.attacked_cards.append(card)
+            deflect_attack()
+        else:
+            # TODO: what happens if play the same number but with a trump
+            pass
             
 def validate_string(text):
     pattern = re.compile(r'^(?:[2-9TJQKA])(?:[♣️♦️♥️♠️])$')
