@@ -37,6 +37,22 @@ class Durak():
         self.shown_cards = []
         self.temp_card = ''
 
+def format_reply_keyboard(cards_list):
+    cards_list.sort()
+    if len(cards_list) <= 7:
+        return [cards_list]
+    else:
+        quotient, remainder = divmod(len(cards_list), 7)
+        n_rows = quotient + 1
+        quotient, remainder = divmod(len(cards_list), n_rows)
+        new_list = []
+        index = 0
+        for i in range(n_rows):
+            add = 1 if (i < remainder) else 0
+            new_list.append(cards_list[index:index + quotient + add])
+            index += quotient + add
+        return new_list
+
 def update_players():
     for i in range(len(durak.players) - 1):
         message = '{} has joined the game. Current players: '.format(durak.players[-1])
@@ -51,7 +67,7 @@ def start(update, context):
     if user not in durak.players:
         durak.players.append(user)
         durak.chat_ids.append(update.message.chat_id)
-    message = 'You have joined a game of Durak. Type /startgame to start game. '
+    message = 'You have joined a game of Durak. Type /start to start game. '
     message += 'Current players: '
     for i in range(len(durak.players)):
         message += durak.players[i]
@@ -109,13 +125,13 @@ def launch_attack():
     for i in range(len(durak.players)):
         if i == durak.attacker:
             message = 'You are the attacker this round. Choose a card to attack {}.'.format(durak.players[durak.attackee])
-            reply_keyboard = [durak.cards[durak.players[durak.attacker]]]
+            reply_keyboard = format_reply_keyboard(durak.cards[durak.players[durak.attacker]])
         elif i == durak.attackee:
             message = 'You are being attacked by {} this round.'.format(durak.players[durak.attacker])
-            reply_keyboard = durak.cards[durak.players[durak.attackee]]
+            reply_keyboard = format_reply_keyboard(durak.cards[durak.players[durak.attackee]])
         else:
             message = '{} is attacking {} this round.'.format(durak.players[durak.attacker], durak.players[durak.attackee])
-            reply_keyboard = [durak.cards[durak.players[i]]]
+            reply_keyboard = format_reply_keyboard(durak.cards[durak.players[i]])
         bot.send_message(chat_id=durak.chat_ids[i], text=message,
                          reply_markup=ReplyKeyboardMarkup(reply_keyboard))
 
@@ -126,14 +142,14 @@ def attack_card(card):
             durak.cards[durak.players[durak.attacker]].remove(card)
             if card[0] not in durak.played_numbers:
                 durak.played_numbers.append(card[0])
-            reply_keyboard = [durak.cards[durak.players[durak.attacker]]]
+            reply_keyboard = format_reply_keyboard(durak.cards[durak.players[durak.attacker]])
         elif i == durak.attackee:
             message = 'You have been attacked by {} with {}.'.format(durak.players[durak.attacker], card)
             keyboard = durak.cards[durak.players[durak.attackee]] + ['Take']
-            reply_keyboard = [keyboard]
+            reply_keyboard = format_reply_keyboard(keyboard)
         else:
             message = '{} has attacked {} with {}.'.format(durak.players[durak.attacker], durak.players[durak.attackee], card)
-            reply_keyboard = [durak.cards[durak.players[i]]]
+            reply_keyboard = format_reply_keyboard(durak.cards[durak.players[i]])
         bot.send_message(chat_id=durak.chat_ids[i], text=message,
                          reply_markup=ReplyKeyboardMarkup(reply_keyboard))
     
@@ -153,14 +169,14 @@ def attack_card_from_anyone(card, user):
         if durak.players[i] == user:
             message = 'You have attacked {} with {}.'.format(durak.players[durak.attackee], card)
             durak.cards[user].remove(card)
-            reply_keyboard = [durak.cards[user]]
+            reply_keyboard = format_reply_keyboard(durak.cards[user])
         elif i == durak.attackee:
             message = '{} has attacked you with {}.'.format(user, card)
             keyboard = durak.cards[durak.players[durak.attackee]] + ['Take']
-            reply_keyboard = [keyboard]
+            reply_keyboard = format_reply_keyboard(keyboard)
         else:
             message = '{} has attacked {} with {}.'.format(user, durak.players[durak.attackee], card)
-            reply_keyboard = [durak.cards[durak.players[i]]]
+            reply_keyboard = format_reply_keyboard(durak.cards[durak.players[i]])
         bot.send_message(chat_id=durak.chat_ids[i], text=message,
                          reply_markup=ReplyKeyboardMarkup(reply_keyboard))
 
@@ -203,7 +219,7 @@ def deflect_attack(card):
     if len(durak.cards[durak.players[durak.attackee]]) < (len(durak.attacked_cards) + add):
         message = 'Unable to deflect. {} only has {} card(s).'.format(durak.players[durak.attackee], len(durak.cards[durak.players[durak.attackee]]))
         durak.attackee = old_attackee
-        reply_keyboard = [durak.cards[durak.players[durak.attackee]]]
+        reply_keyboard = format_reply_keyboard(durak.cards[durak.players[durak.attackee]])
         bot.send_message(chat_id=durak.chat_ids[durak.attackee], text=message,
                          reply_markup=ReplyKeyboardMarkup(reply_keyboard))
         return
@@ -219,10 +235,10 @@ def deflect_attack(card):
     for i in range(len(durak.players)):
         if i == durak.attackee:
             message += 'The attack has been deflected. You are being attacked with {}.'.format(durak.attacked_cards)
-            reply_keyboard = [durak.cards[durak.players[durak.attackee]]]
+            reply_keyboard = format_reply_keyboard(durak.cards[durak.players[durak.attackee]])
         else:
             message += 'The attack has been deflected. {} is being attacked with {}'.format(durak.players[durak.attackee], durak.attacked_cards)
-            reply_keyboard = [durak.cards[durak.players[i]]]
+            reply_keyboard = format_reply_keyboard(durak.cards[durak.players[i]])
         bot.send_message(chat_id=durak.chat_ids[i], text=message,
                          reply_markup=ReplyKeyboardMarkup(reply_keyboard))
 
@@ -236,7 +252,7 @@ def deflect_or_defend(response):
             durak.state = State.FREE_TO_ATTACK
             return
         else:
-            reply_keyboard = [lower_cards]
+            reply_keyboard = format_reply_keyboard(lower_cards)
             message = 'Which card to you want to defend against?'
             bot.send_message(chat_id=durak.chat_ids[durak.attackee], text=message,
                             reply_markup=ReplyKeyboardMarkup(reply_keyboard))
@@ -261,10 +277,10 @@ def respond_to_attack(card):
         for i in range(len(durak.players)):
             if i == durak.attackee:
                 message = 'You have taken all cards on the table.'
-                reply_keyboard = [durak.cards[durak.players[durak.attackee]]]
+                reply_keyboard = format_reply_keyboard(durak.cards[durak.players[durak.attackee]])
             else:
                 message = '{} has taken all cards on the table.'.format(durak.players[durak.attackee])
-                reply_keyboard = [durak.cards[durak.players[i]]]
+                reply_keyboard = format_reply_keyboard(durak.cards[durak.players[i]])
             bot.send_message(chat_id=durak.chat_ids[i], text=message,
                             reply_markup=ReplyKeyboardMarkup(reply_keyboard))
         end_round()
@@ -274,7 +290,7 @@ def respond_to_attack(card):
         if len(lower_cards) == 0:
             return
         else:
-            reply_keyboard = [lower_cards]
+            reply_keyboard = format_reply_keyboard(lower_cards)
             message = 'Which card to you want to defend against?'
             bot.send_message(chat_id=durak.chat_ids[durak.attackee], text=message,
                              reply_markup=ReplyKeyboardMarkup(reply_keyboard))
@@ -291,10 +307,10 @@ def choose_card_to_defend(card):
     for i in range(len(durak.players)):
         if i == durak.attackee:
             message = 'You have defended {} with {}.'.format(card, durak.chosen_card)
-            reply_keyboard = [durak.cards[durak.players[durak.attackee]]]
+            reply_keyboard = format_reply_keyboard(durak.cards[durak.players[durak.attackee]])
         else:
             message = '{} has defended {} with {}'.format(durak.players[durak.attackee], card, durak.chosen_card)
-            reply_keyboard = [durak.cards[durak.players[i]]]
+            reply_keyboard = format_reply_keyboard(durak.cards[durak.players[i]])
         bot.send_message(chat_id=durak.chat_ids[i], text=message,
                          reply_markup=ReplyKeyboardMarkup(reply_keyboard))
     
@@ -306,8 +322,10 @@ def choose_card_to_defend(card):
         durak.state = State.FREE_TO_ATTACK
 
 def successful_defend():
+    global timer
     durak.successfully_defended = True
     end_round()
+    timer = Timer(10.0, successful_defend)
 
 def end_round():
     durak.state = State.END_ROUND
@@ -330,7 +348,7 @@ def end_round():
     
     message += 'There are {} card(s) left in the deck.'.format(len(durak.deck))
     for i in range(len(durak.players)):
-        reply_keyboard = [durak.cards[durak.players[i]]]
+        reply_keyboard = format_reply_keyboard(durak.cards[durak.players[i]])
         bot.send_message(chat_id=durak.chat_ids[i], text=message,
                          reply_markup=ReplyKeyboardMarkup(reply_keyboard))
     
@@ -364,7 +382,7 @@ def end_game():
         if bool(durak.cards[durak.players[i]]):
             loser = durak.players[i]
             break
-    message = 'The game has ended. The loser is {}. Thanks for playing! Type /start to join a new game.'.format(loser)
+    message = 'The game has ended. The loser is {}. Thanks for playing! Type /join to join a new game.'.format(loser)
     for i in range(len(durak.players)):
         bot.send_message(chat_id=durak.chat_ids[i], text=message)
     # Reset
@@ -409,8 +427,8 @@ def main():
     updater = Updater(TOKEN, use_context=True)
     dp = updater.dispatcher
 
-    dp.add_handler(CommandHandler('start', start))
-    dp.add_handler(CommandHandler('startgame', start_game))
+    dp.add_handler(CommandHandler('join', start))
+    dp.add_handler(CommandHandler('start', start_game))
     dp.add_handler(MessageHandler(Filters.text, handle_response))
 
     updater.start_polling()
