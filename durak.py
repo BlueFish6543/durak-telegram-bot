@@ -7,6 +7,7 @@ import random
 import re
 from threading import Timer
 from poker import Card, Rank
+from bot_token import TOKEN
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -14,7 +15,6 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 logger = logging.getLogger(__name__)
 
-TOKEN = '1149877964:AAEsgPRA71GcpjDLkGgqrpKaWlq2AXqW9hY'
 bot = Bot(TOKEN)
 
 class State(Enum):
@@ -32,6 +32,7 @@ class Durak():
         self.deck = []
         self.total_number_of_cards = 0
         self.trump_suit = ''
+        self.trump_card = ''
         self.attacker = 0
         self.attackee = 1
         self.state = None
@@ -55,12 +56,16 @@ def set_timer_time():
 
 def to_number(card):
     face_cards = {'T': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14}
-    if card[0].isnumeric():
-        return int(card[0])
-    elif len(card) == 2:
-        return face_cards[card[0]]
+    if card[1] == durak.trump_suit:
+        add = 13
     else:
-        return 15
+        add = 0
+    if card[0].isnumeric():
+        return int(card[0]) + add
+    elif len(card) == 2:
+        return face_cards[card[0]] + add
+    else:
+        return 28
 
 def format_reply_keyboard(cards_list):
     cards_list.sort(key=to_number)
@@ -77,6 +82,15 @@ def format_reply_keyboard(cards_list):
             new_list.append(cards_list[index:index + quotient + add])
             index += quotient + add
         return new_list
+
+def format_defended_cards(cards_list):
+    new_list = []
+    for i in range(len(cards_list)):
+        if (i % 2 == 1):
+            continue
+        text = '{} -> {}'.format(cards_list[i], cards_list[i + 1])
+        new_list.append(text)
+    return new_list
 
 def update_players():
     for i in range(len(durak.players) - 1):
@@ -120,6 +134,7 @@ def display_cards_info(text):
         message += '\nThe trump (last card) is {}.'.format(durak.deck[0])
         bot.send_message(chat_id=durak.chat_ids[i], text=message)
     durak.trump_suit = str(durak.deck[0])[1]
+    durak.trump_card = str(durak.deck[0])
     update_cards_left()
 
 def start_game(update, context):
@@ -196,9 +211,12 @@ def attack_card_from_anyone(card, user):
         return
     if (durak.n_attacked_cards == 7) or len(durak.attacked_cards) == len(durak.cards[durak.players[durak.attackee]]):
         return
-    if card in durak.attacked_cards:
+    if card not in durak.cards[user]:
         return
     timer.cancel()
+
+    durak.attacked_cards.append(card)
+    durak.n_attacked_cards += 1
 
     for i in range(len(durak.players)):
         if durak.players[i] == user:
@@ -212,12 +230,21 @@ def attack_card_from_anyone(card, user):
         else:
             message = '{} has attacked {} with {}.'.format(user, durak.players[durak.attackee], card)
             reply_keyboard = format_reply_keyboard(durak.cards[durak.players[i]])
+        message += '\nOutstanding cards to defend: {}'.format(durak.attacked_cards)
+        message += '\nDefended cards: {}'.format(format_defended_cards(durak.defended_cards))
         bot.send_message(chat_id=durak.chat_ids[i], text=message,
                          reply_markup=ReplyKeyboardMarkup(reply_keyboard))
 
-    durak.attacked_cards.append(card)
-    durak.n_attacked_cards += 1
     durak.successfully_defended = False
+
+def try_again(user):
+    message = "Sorry, the attack didn't go through. Please try again."
+    for i in range(len(durak.players)):
+        if durak.players[i] == user:
+            reply_keyboard = format_reply_keyboard(durak.cards[user])
+            bot.send_message(chat_id=durak.chat_ids[i], text=message,
+                             reply_markup=ReplyKeyboardMarkup(reply_keyboard))
+            return
 
 def compare_cards(card):
     lower_cards = []
@@ -335,7 +362,7 @@ def respond_to_attack(card):
 
 def choose_card_to_defend(card):
     global timer
-
+    
     durak.cards[durak.players[durak.attackee]].remove(durak.chosen_card)
     durak.attacked_cards.remove(card)
     durak.defended_cards.append(card)
@@ -350,6 +377,8 @@ def choose_card_to_defend(card):
         else:
             message = '{} has defended {} with {}'.format(durak.players[durak.attackee], card, durak.chosen_card)
             reply_keyboard = format_reply_keyboard(durak.cards[durak.players[i]])
+        message += '\nOutstanding cards to defend: {}'.format(durak.attacked_cards)
+        message += '\nDefended cards: {}'.format(format_defended_cards(durak.defended_cards))
         bot.send_message(chat_id=durak.chat_ids[i], text=message,
                          reply_markup=ReplyKeyboardMarkup(reply_keyboard))
     
@@ -360,6 +389,17 @@ def choose_card_to_defend(card):
             timer = Timer(set_timer_time(), successful_defend)
             timer.start()
         durak.state = State.FREE_TO_ATTACK
+
+def print_status(update, context):
+    message = ''
+    message += 'Attacker: {}\n'.format(durak.players[durak.attacker])
+    message += 'Attackee: {}\n'.format(durak.players[durak.attackee])
+    for i in range(len(durak.players)):
+        message += 'Player {}: {} who has {} cards\n'.format(i + 1, durak.players[i], len(durak.cards[durak.players[i]]))
+    message += 'Number of cards left: {}\n'.format(len(durak.deck))
+    message += 'Trump card: {}'.format(durak.trump_card)
+    for i in range(len(durak.players)):
+        bot.send_message(chat_id=durak.chat_ids[i], text=message)    
 
 def successful_defend():
     global timer
@@ -373,8 +413,6 @@ def end_round():
     
     # Draw cards, if any
     for i in range(len(durak.players)):
-        if len(durak.deck) == 0:
-            break
         index = (durak.attacker + i) % len(durak.players)
         draw = 0
         while (len(durak.cards[durak.players[index]]) < 7) and (len(durak.deck) > 0):
@@ -444,35 +482,37 @@ def reset(update, context):
     timer = Timer(set_timer_time(), successful_defend)
 
 def handle_response(update, context):
-    if (durak.state == State.WAITING_FOR_ATTACKER) and (update.message.from_user.first_name == durak.players[durak.attacker]):
-        if not validate_string(update.message.text):
-            return
-        attack_card(update.message.text)
+    if not validate_string(update.message.text):
+        return
 
-    elif (durak.state in [State.FREE_TO_ATTACK]) and \
-            (update.message.from_user.first_name != durak.players[durak.attackee]):
-        if not validate_string(update.message.text):
-            return
-        attack_card_from_anyone(update.message.text, update.message.from_user.first_name)
-    
-    elif (durak.state == State.FREE_TO_ATTACK) and (update.message.from_user.first_name == durak.players[durak.attackee]):
-        if not validate_string(update.message.text):
-            return
-        respond_to_attack(update.message.text)
+    try:
+        if (durak.state == State.WAITING_FOR_ATTACKER) and (update.message.from_user.first_name == durak.players[durak.attacker]):
+            attack_card(update.message.text)
 
-    elif (durak.state == State.ATTACKEE_SECOND_RESPONSE) and (update.message.from_user.first_name == durak.players[durak.attackee]):
-        if not validate_string(update.message.text):
-            return
-        choose_card_to_defend(update.message.text)
+        elif (durak.state == [State.FREE_TO_ATTACK]) and (update.message.from_user.first_name != durak.players[durak.attackee]):
+            attack_card_from_anyone(update.message.text, update.message.from_user.first_name)
+
+        elif (durak.state in [State.ATTACKEE_SECOND_RESPONSE, State.DEFLECT_OR_DEFEND]) and \
+                (update.message.from_user.first_name != durak.players[durak.attackee]):
+            try_again(update.message.from_user.first_name)
+        
+        elif (durak.state == State.FREE_TO_ATTACK) and (update.message.from_user.first_name == durak.players[durak.attackee]):
+            respond_to_attack(update.message.text)
+
+        elif (durak.state == State.ATTACKEE_SECOND_RESPONSE) and (update.message.from_user.first_name == durak.players[durak.attackee]):
+            if update.message.text not in durak.attacked_cards:
+                return
+            choose_card_to_defend(update.message.text)
+        
+        elif (durak.state == State.DEFLECT_OR_DEFEND) and (update.message.from_user.first_name == durak.players[durak.attackee]):
+            deflect_or_defend(update.message.text)
+        
+        else:
+            # Ignore message
+            pass
     
-    elif (durak.state == State.DEFLECT_OR_DEFEND) and (update.message.from_user.first_name == durak.players[durak.attackee]):
-        if not validate_string(update.message.text):
-            return
-        deflect_or_defend(update.message.text)
-    
-    else:
-        # Ignore message
-        pass
+    except Exception as e:
+        print(e)
 
 def main():
     updater = Updater(TOKEN, use_context=True)
@@ -481,6 +521,7 @@ def main():
     dp.add_handler(CommandHandler('start', start))
     dp.add_handler(CommandHandler('startgame', start_game))
     dp.add_handler(CommandHandler('reset', reset))
+    dp.add_handler(CommandHandler('status', print_status))
     dp.add_handler(MessageHandler(Filters.text, handle_response))
     dp.add_error_handler(error)
 
