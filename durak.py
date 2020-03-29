@@ -141,8 +141,14 @@ def start_game(update, context):
     if durak.state is not None:
         update.message.reply_text('Sorry, a game is already in progress.')
         return
+
+    # Randomly order players
+    turn_order = list(range(len(durak.players)))
+    random.shuffle(turn_order)
+    durak.players = [durak.players[i] for i in turn_order]
+    durak.chat_ids = [durak.chat_ids[i] for i in turn_order]
     
-    message = 'A game has been started. Current players: '
+    message = 'A game has been started. Random order of play: '
     for i in range(len(durak.players)):
         message += durak.players[i]
         message += ', '
