@@ -168,6 +168,7 @@ def launch_attack():
     durak.attacked_cards = []
     durak.defended_cards = []
     durak.played_numbers = []
+    durak.n_attacked_cards = 0
     durak.state = State.WAITING_FOR_ATTACKER
 
     for i in range(len(durak.players)):
@@ -184,6 +185,9 @@ def launch_attack():
                          reply_markup=ReplyKeyboardMarkup(reply_keyboard))
 
 def attack_card(card):
+    if (durak.n_attacked_cards >= 1) and (card[0] not in durak.played_numbers):
+        return
+    
     for i in range(len(durak.players)):
         if i == durak.attacker:
             message = 'You have chosen to attack {} with {}.'.format(durak.players[durak.attackee], card)
@@ -201,10 +205,20 @@ def attack_card(card):
         bot.send_message(chat_id=durak.chat_ids[i], text=message,
                          reply_markup=ReplyKeyboardMarkup(reply_keyboard))
     
+    if durak.n_attacked_cards == 0:
+        attack_timer.start()
+    
     durak.successfully_defended = False
     durak.attacked_cards.append(card)
-    durak.n_attacked_cards = 1
+    durak.n_attacked_cards += 1
+
+def open_attack_to_all():
+    global attack_timer
     durak.state = State.FREE_TO_ATTACK
+    message = 'Attack now open to all.'
+    for i in range(len(durak.players)):
+        bot.send_message(chat_id=durak.chat_ids[i], text=message)
+    attack_timer = Timer(3, open_attack_to_all)
 
 def attack_card_from_anyone(card, user):
     if card[0] not in durak.played_numbers:
@@ -531,4 +545,5 @@ def main():
 if __name__ == '__main__':
     durak = Durak()
     timer = Timer(set_timer_time(), successful_defend)
+    attack_timer = Timer(3, open_attack_to_all)
     main()
