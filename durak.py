@@ -446,7 +446,7 @@ def end_round():
         durak.attacker = (durak.attackee + 1) % len(durak.players)
         while len(durak.cards[durak.players[durak.attacker]]) == 0:
             # Go to the next active player
-            durak.attackee = (durak.attacker + 1) % len(durak.players)
+            durak.attacker = (durak.attacker + 1) % len(durak.players)
     durak.attackee = (durak.attacker + 1) % len(durak.players)
     while len(durak.cards[durak.players[durak.attackee]]) == 0:
         # Go to the next active player
