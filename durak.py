@@ -323,18 +323,7 @@ def deflect_or_defend(response):
             durak.chosen_card = durak.temp_card
     
 def respond_to_attack(card):
-    if card[0] == durak.played_numbers[0]:
-        if card[1] != durak.trump_suit:
-            deflect_attack(card)
-        else:
-            message = 'Do you want to deflect or defend?'
-            reply_keyboard = [['Deflect', 'Defend']]
-            bot.send_message(chat_id=durak.chat_ids[durak.attackee], text=message,
-                             reply_markup=ReplyKeyboardMarkup(reply_keyboard))
-            durak.temp_card = card
-            durak.state = State.DEFLECT_OR_DEFEND
-    
-    elif card == 'Take':
+    if card == 'Take':
         durak.cards[durak.players[durak.attackee]] += durak.attacked_cards
         durak.cards[durak.players[durak.attackee]] += durak.defended_cards
         for i in range(len(durak.players)):
@@ -347,6 +336,17 @@ def respond_to_attack(card):
             bot.send_message(chat_id=durak.chat_ids[i], text=message,
                             reply_markup=ReplyKeyboardMarkup(reply_keyboard))
         end_round()
+
+    elif card[0] == durak.played_numbers[0]:
+        if card[1] != durak.trump_suit:
+            deflect_attack(card)
+        else:
+            message = 'Do you want to deflect or defend?'
+            reply_keyboard = [['Deflect', 'Defend']]
+            bot.send_message(chat_id=durak.chat_ids[durak.attackee], text=message,
+                             reply_markup=ReplyKeyboardMarkup(reply_keyboard))
+            durak.temp_card = card
+            durak.state = State.DEFLECT_OR_DEFEND
 
     else:
         lower_cards = compare_cards(card)
@@ -489,7 +489,7 @@ def handle_response(update, context):
         if (durak.state == State.WAITING_FOR_ATTACKER) and (update.message.from_user.first_name == durak.players[durak.attacker]):
             attack_card(update.message.text)
 
-        elif (durak.state == [State.FREE_TO_ATTACK]) and (update.message.from_user.first_name != durak.players[durak.attackee]):
+        elif (durak.state == State.FREE_TO_ATTACK) and (update.message.from_user.first_name != durak.players[durak.attackee]):
             attack_card_from_anyone(update.message.text, update.message.from_user.first_name)
 
         elif (durak.state in [State.ATTACKEE_SECOND_RESPONSE, State.DEFLECT_OR_DEFEND]) and \
