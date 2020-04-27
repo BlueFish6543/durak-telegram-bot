@@ -357,7 +357,7 @@ def respond_to_attack(card):
                             reply_markup=ReplyKeyboardMarkup(reply_keyboard))
         end_round()
 
-    elif card[0] == durak.played_numbers[0]:
+    elif (card[0] == durak.played_numbers[0]) and (not len(durak.defended_cards)):
         if card[1] != durak.trump_suit:
             deflect_attack(card)
         else:
