@@ -18,3 +18,7 @@ Find the bot at @QuarkZeroBot on Telegram and type `/start`.
 /status
 /reset
 ```
+
+## Notes
+
+The bot token lives in `bot_token.py` which exists in the developer's computer.
